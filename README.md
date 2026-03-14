@@ -1,26 +1,75 @@
-# Simple Highlights (Chrome Extension)
+# Simple Highlights
 
-Simple Highlights is a Manifest V3 Chrome extension for selecting, highlighting, storing, restoring, and browsing highlighted text across web pages.
+Simple Highlights is a Chrome extension built on Manifest V3 for people who want a lightweight way to mark text, keep a persistent library of quotes, and recover those highlights when they return to the same page.
 
-## Language Note
+It is designed around a simple workflow:
 
-The extension interface is currently in Spanish (labels, helper text, and most user-facing messages), while this README is fully written in English.
+1. Select text on any page.
+2. Highlight it with a floating toolbar.
+3. Revisit the page later and see the highlight restored.
+4. Open the popup to search, sort, and browse your saved highlights.
 
-## Current Features
+## Product Snapshot
 
-- Floating toolbar appears near text selections.
-- `Highlight` action applies highlights using the currently selected color.
-- Color picker includes 4 pastel options and remembers the latest choice during the session.
-- Hovering a highlight shows a `Remove` button with delayed auto-hide and fade-out.
-- Highlights are stored persistently in `chrome.storage.local`.
-- Each record stores: id, URL, hostname, page title, text, color, timestamp, and restore context.
-- Automatic highlight restoration on page load for the current URL.
-- Advanced restoration supports multi-node matches and context-based disambiguation.
-- Popup library displays stored highlights.
-- Popup search supports accent-insensitive and special-character-tolerant matching.
-- Popup includes sort modes: relevance, newest, oldest, and site A-Z.
-- Popup can toggle grouping by website on/off.
-- Popup preferences (sort mode and grouping) persist across popup sessions.
+- Fast inline highlighting with a compact floating toolbar.
+- Four pastel highlight colors.
+- Persistent local library stored in `chrome.storage.local`.
+- Automatic restoration for previously saved highlights on matching URLs.
+- Improved restoration logic for text that spans multiple DOM nodes.
+- Context-aware restoration to better distinguish repeated text fragments.
+- Popup search with tolerance for accents and special characters.
+- Sort modes for common library browsing patterns.
+- Optional grouping by website.
+- Persistent popup preferences for grouping and sort mode.
+
+## Interface Language
+
+The extension UI is currently in Spanish.
+
+This includes popup labels, helper copy, and several interaction messages. The repository documentation is written in English so the project remains easy to understand for a broader developer audience.
+
+## What It Does Well
+
+### Highlighting
+
+- A floating toolbar appears near the current selection.
+- The toolbar lets the user apply a highlight or choose a color.
+- The latest selected color is remembered during the session.
+
+### Highlight Removal
+
+- Hovering an existing highlight reveals a `Remove` button.
+- The button stays visible briefly before hiding.
+- Hiding uses a fade-out transition rather than disappearing abruptly.
+
+### Persistent Library
+
+Each saved highlight records:
+
+- Unique id.
+- Original page URL.
+- Hostname.
+- Page title.
+- Highlight text.
+- Selected color.
+- Creation timestamp.
+- Prefix and suffix context used to improve restoration accuracy.
+
+### Restoration
+
+- Highlights are restored automatically when the user returns to the same URL.
+- Restoration includes a retry pass for pages that render content after `document_idle`.
+- Matching is not limited to single text nodes.
+- Repeated text is resolved more accurately through stored context.
+
+### Popup Library
+
+- Displays the saved highlight collection.
+- Supports live search.
+- Search is tolerant to accents and punctuation-like differences.
+- Can sort by relevance, newest, oldest, or site A-Z.
+- Can switch between grouped-by-site and flat-list views.
+- Remembers sort and grouping preferences across popup sessions.
 
 ## Project Structure
 
@@ -48,34 +97,52 @@ SIMPLE-HIGHLIGHTS/
       highlight-library.js
 ```
 
-## Security and Platform Notes
+## Technical Notes
 
-- Uses Chrome Extension Manifest V3 and a background service worker.
+- Built as a Chrome Extension using Manifest V3.
+- Uses a background service worker.
+- Uses safe DOM operations such as `Range`, `Selection`, `createElement`, and `textContent`.
+- Avoids `eval()` and `innerHTML` for core UI rendering.
+- Uses `chrome.storage.local` for persistence.
+
+## Security Notes
+
 - Strict extension page CSP:
   - `script-src 'self'`
   - `object-src 'none'`
   - `base-uri 'none'`
-- Does not use `eval()` or `innerHTML` for dynamic UI content.
-- Uses minimal permission scope (`storage`) for persistence.
+- Minimal permission scope focused on storage.
+- No deprecated background page model.
 
-## Load in Chrome (Developer Mode)
+## Install Locally in Chrome
 
 1. Open Chrome and go to `chrome://extensions/`.
-2. Enable **Developer mode**.
-3. Click **Load unpacked**.
+2. Enable Developer Mode.
+3. Click Load unpacked.
 4. Select the `SIMPLE-HIGHLIGHTS` folder.
-5. Open any website and select text.
-6. Use `Highlight` and `Color` from the floating toolbar.
-7. Open the extension popup to browse, search, sort, and group saved highlights.
+5. Open a website and select text.
+6. Use the floating toolbar to highlight.
+7. Open the extension popup to browse the saved library.
 
-## Implementation Notes
+## Typical User Flow
 
-- Highlight rendering is done with safe DOM operations (`Range`, `Selection`, `createElement`, `textContent`).
-- Restoration includes a retry pass for late-rendered page content.
-- Search normalization removes diacritics and non-alphanumeric separators to improve average-user matching behavior.
+1. Select a piece of text.
+2. Click `Highlight`.
+3. Hover the highlight later if you want to remove it.
+4. Open the popup to search or organize saved highlights.
+5. Reopen the same page later and let the extension restore the saved marks.
 
-## Suggested Next Improvements
+## Current Limitations
 
-- Add one-click jump from popup item to highlighted location on the active page.
-- Add export/import for highlight library backups.
-- Add optional sync support (`chrome.storage.sync`) for cross-device preferences.
+- Restoration is tied to the exact URL currently saved with the highlight.
+- Extremely dynamic pages can still produce edge cases where restoration is incomplete.
+- Popup preferences persist, but the current search query is not yet persisted.
+- Library actions are still focused on browse/search; there is no export, sync, or jump-to-page action yet.
+
+## Roadmap Ideas
+
+- Jump from a popup result to the matching highlight in the active tab.
+- Export and import library backups.
+- Optional sync support for settings and highlights.
+- Per-site filters and color-based filters in the popup.
+- Better handling for highly dynamic SPA navigation.
