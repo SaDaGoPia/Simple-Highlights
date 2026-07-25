@@ -29,7 +29,24 @@
             Agrupar: Sitio
           </button>
         </div>
+        <div class="filter-controls">
+          <select id="site-filter" class="site-filter" aria-label="Filtrar por sitio">
+            <option value="">Todos los sitios</option>
+          </select>
+          <div id="color-filter" class="color-filter" role="group" aria-label="Filtrar por color">
+            <button type="button" class="color-swatch is-active" data-color-value="" aria-label="Todos los colores" aria-pressed="true">
+              <span class="color-swatch-all">Todos</span>
+            </button>
+          </div>
+        </div>
       </section>
+
+      <section class="library-actions">
+        <button id="export-button" class="control-button" type="button">Exportar</button>
+        <button id="import-button" class="control-button" type="button">Importar</button>
+        <input id="import-file-input" type="file" accept="application/json" hidden />
+      </section>
+      <p id="library-status" class="library-status" aria-live="polite"></p>
 
       <section id="library-content" class="library-content" aria-live="polite"></section>
     </main>

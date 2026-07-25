@@ -1,37 +1,56 @@
-"use strict";
+﻿"use strict";
 
 (() => {
   const PREFERENCES_STORAGE_KEY = "simpleHighlightsPopupPreferences";
+  const DISPLAY_TEXT_MAX_LENGTH = 500;
+
+  const COLOR_PALETTE = [
+    { id: "sun", label: "Sun", value: "#fae082" },
+    { id: "mint", label: "Mint", value: "#b7efc5" },
+    { id: "sky", label: "Sky", value: "#b9d9ff" },
+    { id: "rose", label: "Rose", value: "#f9c5d5" }
+  ];
+
   const libraryRoot = document.getElementById("library-content");
   const searchInput = document.getElementById("library-search");
   const sortModeButton = document.getElementById("sort-mode-button");
   const groupToggleButton = document.getElementById("group-toggle-button");
+  const siteFilterSelect = document.getElementById("site-filter");
+  const colorFilterContainer = document.getElementById("color-filter");
+  const exportButton = document.getElementById("export-button");
+  const importButton = document.getElementById("import-button");
+  const importFileInput = document.getElementById("import-file-input");
+  const libraryStatus = document.getElementById("library-status");
   const libraryModule = globalThis.SimpleHighlightsLibrary;
+
   let allItems = [];
+  let currentRawQuery = "";
   let currentQuery = "";
   let currentSortMode = "relevance";
   let groupBySiteEnabled = true;
+  let currentSiteFilter = "";
+  let currentColorFilter = "";
+  let statusTimeoutId = 0;
 
   const SORT_MODES = [
-    {
-      id: "relevance",
-      label: "Relevancia"
-    },
-    {
-      id: "newest",
-      label: "Mas recientes"
-    },
-    {
-      id: "oldest",
-      label: "Mas antiguos"
-    },
-    {
-      id: "site-az",
-      label: "Sitio A-Z"
-    }
+    { id: "relevance", label: "Relevancia" },
+    { id: "newest", label: "Mas recientes" },
+    { id: "oldest", label: "Mas antiguos" },
+    { id: "site-az", label: "Sitio A-Z" }
   ];
 
-  if (!libraryRoot || !searchInput || !sortModeButton || !groupToggleButton || !libraryModule) {
+  if (
+    !libraryRoot ||
+    !searchInput ||
+    !sortModeButton ||
+    !groupToggleButton ||
+    !siteFilterSelect ||
+    !colorFilterContainer ||
+    !exportButton ||
+    !importButton ||
+    !importFileInput ||
+    !libraryModule
+  ) {
     return;
   }
 
@@ -61,6 +80,22 @@
     }
 
     return element;
+  }
+
+  function truncateForDisplay(inputText) {
+    if (inputText.length <= DISPLAY_TEXT_MAX_LENGTH) {
+      return inputText;
+    }
+
+    return `${inputText.slice(0, DISPLAY_TEXT_MAX_LENGTH)}…`;
+  }
+
+  function showStatus(messageText) {
+    window.clearTimeout(statusTimeoutId);
+    libraryStatus.textContent = messageText;
+    statusTimeoutId = window.setTimeout(() => {
+      libraryStatus.textContent = "";
+    }, 4000);
   }
 
   function groupByHostname(items) {
@@ -113,11 +148,23 @@
         return;
       }
 
-      const sortMode = getSortModeById(preferences.sortMode).id;
-      currentSortMode = sortMode;
+      currentSortMode = getSortModeById(preferences.sortMode).id;
 
       if (typeof preferences.groupBySiteEnabled === "boolean") {
         groupBySiteEnabled = preferences.groupBySiteEnabled;
+      }
+
+      if (typeof preferences.searchQuery === "string") {
+        currentRawQuery = preferences.searchQuery;
+        currentQuery = normalizeForSearch(preferences.searchQuery);
+      }
+
+      if (typeof preferences.siteFilter === "string") {
+        currentSiteFilter = preferences.siteFilter;
+      }
+
+      if (typeof preferences.colorFilter === "string") {
+        currentColorFilter = preferences.colorFilter;
       }
     } catch (error) {
       console.warn("No se pudieron cargar las preferencias del popup.", error);
@@ -133,7 +180,10 @@
       await chrome.storage.local.set({
         [PREFERENCES_STORAGE_KEY]: {
           sortMode: currentSortMode,
-          groupBySiteEnabled
+          groupBySiteEnabled,
+          searchQuery: currentRawQuery,
+          siteFilter: currentSiteFilter,
+          colorFilter: currentColorFilter
         }
       });
     } catch (error) {
@@ -147,6 +197,72 @@
 
     groupToggleButton.textContent = groupBySiteEnabled ? "Agrupar: Sitio" : "Agrupar: Ninguno";
     groupToggleButton.setAttribute("aria-pressed", String(groupBySiteEnabled));
+  }
+
+  function refreshSiteFilterOptions() {
+    const hostnames = Array.from(
+      new Set(allItems.map((item) => item.hostname || "unknown-site"))
+    ).sort((left, right) => left.localeCompare(right, "es"));
+
+    const previousValue = currentSiteFilter;
+    siteFilterSelect.textContent = "";
+
+    const allOption = createElement("option", "", "Todos los sitios");
+    allOption.value = "";
+    siteFilterSelect.appendChild(allOption);
+
+    for (const hostname of hostnames) {
+      const option = createElement("option", "", hostname);
+      option.value = hostname;
+      siteFilterSelect.appendChild(option);
+    }
+
+    if (hostnames.includes(previousValue)) {
+      siteFilterSelect.value = previousValue;
+    } else {
+      currentSiteFilter = "";
+      siteFilterSelect.value = "";
+    }
+  }
+
+  function buildColorFilterSwatches() {
+    const allColorsButton = colorFilterContainer.querySelector('[data-color-value=""]');
+    if (allColorsButton) {
+      allColorsButton.addEventListener("click", () => {
+        currentColorFilter = "";
+        updateColorFilterActiveState();
+        renderCurrentView();
+        savePopupPreferences();
+      });
+    }
+
+    for (const color of COLOR_PALETTE) {
+      const swatch = createElement("button", "color-swatch");
+      swatch.type = "button";
+      swatch.style.backgroundColor = color.value;
+      swatch.setAttribute("data-color-value", color.value);
+      swatch.setAttribute("aria-label", `Color ${color.label}`);
+      swatch.setAttribute("aria-pressed", "false");
+
+      swatch.addEventListener("click", () => {
+        currentColorFilter = currentColorFilter === color.value ? "" : color.value;
+        updateColorFilterActiveState();
+        renderCurrentView();
+        savePopupPreferences();
+      });
+
+      colorFilterContainer.appendChild(swatch);
+    }
+  }
+
+  function updateColorFilterActiveState() {
+    const swatches = colorFilterContainer.querySelectorAll(".color-swatch");
+    for (const swatch of swatches) {
+      const swatchValue = swatch.getAttribute("data-color-value") || "";
+      const isActive = swatchValue === currentColorFilter;
+      swatch.classList.toggle("is-active", isActive);
+      swatch.setAttribute("aria-pressed", String(isActive));
+    }
   }
 
   function renderEmptyState() {
@@ -164,13 +280,9 @@
     const emptyCard = createElement(
       "div",
       "empty-state",
-      `No hay resultados para "${queryText}".`
+      queryText ? `No hay resultados para "${queryText}".` : "No hay resultados con los filtros actuales."
     );
     libraryRoot.appendChild(emptyCard);
-  }
-
-  function normalizeSearchQuery(inputText) {
-    return normalizeForSearch(inputText);
   }
 
   function computeSearchScore(item, queryText) {
@@ -238,8 +350,24 @@
     return score;
   }
 
+  function applyFilters(items) {
+    return items.filter((item) => {
+      if (currentSiteFilter && (item.hostname || "unknown-site") !== currentSiteFilter) {
+        return false;
+      }
+
+      if (currentColorFilter && item.color !== currentColorFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }
+
   function getSortableItems(items, queryText) {
-    const scoredItems = items
+    const filteredItems = applyFilters(items);
+
+    const scoredItems = filteredItems
       .map((item) => ({
         item,
         score: computeSearchScore(item, queryText)
@@ -287,29 +415,105 @@
     return scoredItems.map((entry) => entry.item);
   }
 
+  async function handleDeleteClick(entry) {
+    const confirmed = window.confirm("¿Eliminar este subrayado?");
+    if (!confirmed) {
+      return;
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      type: "removeHighlight",
+      highlightId: entry.id
+    });
+
+    if (!response?.ok) {
+      showStatus("No se pudo eliminar el subrayado.");
+      return;
+    }
+
+    allItems = allItems.filter((item) => item.id !== entry.id);
+    refreshSiteFilterOptions();
+    renderCurrentView();
+    showStatus("Subrayado eliminado.");
+  }
+
+  async function handleOpenClick(entry) {
+    showStatus("Abriendo pagina...");
+    const response = await chrome.runtime.sendMessage({
+      type: "focusHighlight",
+      highlightId: entry.id,
+      url: entry.url
+    });
+
+    if (response?.ok) {
+      window.close();
+      return;
+    }
+
+    showStatus("No se pudo abrir la pagina.");
+  }
+
+  function createItemCard(entry, options) {
+    const itemCard = createElement("div", "highlight-item");
+
+    const row = createElement("div", "item-row");
+    const colorDot = createElement("span", "color-dot");
+    colorDot.style.backgroundColor = entry.color || "#fae082";
+
+    const itemTitle = createElement("p", "item-title", entry.pageTitle || "Untitled page");
+
+    row.appendChild(colorDot);
+    row.appendChild(itemTitle);
+
+    const itemText = createElement("p", "item-text", `"${truncateForDisplay(entry.text || "")}"`);
+    const metaText = options?.showHostname
+      ? `${entry.hostname || "unknown-site"} · ${formatDate(entry.createdAt)}`
+      : formatDate(entry.createdAt);
+    const meta = createElement("p", "item-meta", metaText);
+
+    const actions = createElement("div", "item-actions");
+    const openButton = createElement("button", "item-action-button", "Abrir");
+    openButton.type = "button";
+    openButton.addEventListener("click", () => handleOpenClick(entry));
+
+    const deleteButton = createElement("button", "item-action-button is-danger", "Eliminar");
+    deleteButton.type = "button";
+    deleteButton.addEventListener("click", () => handleDeleteClick(entry));
+
+    actions.appendChild(openButton);
+    actions.appendChild(deleteButton);
+
+    itemCard.appendChild(row);
+    itemCard.appendChild(itemText);
+    itemCard.appendChild(meta);
+    itemCard.appendChild(actions);
+
+    return itemCard;
+  }
+
   function renderFlatList(items) {
     libraryRoot.textContent = "";
 
     for (const entry of items) {
-      const itemCard = createElement("div", "highlight-item");
+      libraryRoot.appendChild(createItemCard(entry, { showHostname: true }));
+    }
+  }
 
-      const row = createElement("div", "item-row");
-      const colorDot = createElement("span", "color-dot");
-      colorDot.style.backgroundColor = entry.color || "#fae082";
+  function renderGroupedLibrary(items) {
+    libraryRoot.textContent = "";
 
-      const itemTitle = createElement("p", "item-title", entry.pageTitle || "Untitled page");
+    const groupedLibrary = groupByHostname(items);
 
-      row.appendChild(colorDot);
-      row.appendChild(itemTitle);
+    for (const [hostname, entries] of groupedLibrary.entries()) {
+      const groupCard = createElement("article", "site-group");
+      const groupTitle = createElement("h2", "site-title", hostname);
+      groupCard.appendChild(groupTitle);
 
-      const itemText = createElement("p", "item-text", `"${entry.text}"`);
-      const meta = createElement("p", "item-meta", `${entry.hostname || "unknown-site"} · ${formatDate(entry.createdAt)}`);
+      for (const entry of entries) {
+        groupCard.appendChild(createItemCard(entry, { showHostname: false }));
+      }
 
-      itemCard.appendChild(row);
-      itemCard.appendChild(itemText);
-      itemCard.appendChild(meta);
-
-      libraryRoot.appendChild(itemCard);
+      libraryRoot.appendChild(groupCard);
     }
   }
 
@@ -330,48 +534,69 @@
       return;
     }
 
-    renderLibrary(filteredItems);
+    renderGroupedLibrary(filteredItems);
   }
 
-  function renderLibrary(items) {
-    libraryRoot.textContent = "";
+  function buildExportFilename() {
+    const now = new Date();
+    const pad = (value) => String(value).padStart(2, "0");
+    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+    return `simple-highlights-backup-${stamp}.json`;
+  }
 
-    if (items.length === 0) {
-      renderEmptyState();
+  async function handleExportClick() {
+    const items = await libraryModule.getLibrary();
+    const jsonText = JSON.stringify(items, null, 2);
+    const blob = new Blob([jsonText], { type: "application/json" });
+    const objectUrl = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = buildExportFilename();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    showStatus(`Exportados ${items.length} subrayados.`);
+  }
+
+  async function handleImportFileChange() {
+    const file = importFileInput.files?.[0];
+    importFileInput.value = "";
+
+    if (!file) {
       return;
     }
 
-    const groupedLibrary = groupByHostname(items);
-
-    for (const [hostname, entries] of groupedLibrary.entries()) {
-      const groupCard = createElement("article", "site-group");
-      const groupTitle = createElement("h2", "site-title", hostname);
-      groupCard.appendChild(groupTitle);
-
-      for (const entry of entries) {
-        const itemCard = createElement("div", "highlight-item");
-
-        const row = createElement("div", "item-row");
-        const colorDot = createElement("span", "color-dot");
-        colorDot.style.backgroundColor = entry.color || "#fae082";
-
-        const itemTitle = createElement("p", "item-title", entry.pageTitle || "Untitled page");
-
-        row.appendChild(colorDot);
-        row.appendChild(itemTitle);
-
-        const itemText = createElement("p", "item-text", `"${entry.text}"`);
-        const meta = createElement("p", "item-meta", formatDate(entry.createdAt));
-
-        itemCard.appendChild(row);
-        itemCard.appendChild(itemText);
-        itemCard.appendChild(meta);
-
-        groupCard.appendChild(itemCard);
-      }
-
-      libraryRoot.appendChild(groupCard);
+    let parsedItems;
+    try {
+      const fileText = await file.text();
+      parsedItems = JSON.parse(fileText);
+    } catch (_error) {
+      showStatus("El archivo no es un JSON valido.");
+      return;
     }
+
+    if (!Array.isArray(parsedItems)) {
+      showStatus("El archivo no contiene una lista de subrayados.");
+      return;
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      type: "importHighlights",
+      items: parsedItems
+    });
+
+    if (!response?.ok) {
+      showStatus("No se pudo importar el archivo.");
+      return;
+    }
+
+    allItems = await libraryModule.getLibrary();
+    refreshSiteFilterOptions();
+    renderCurrentView();
+    showStatus(`Importados ${response.importedCount}, omitidos ${response.skippedCount}.`);
   }
 
   async function bootstrap() {
@@ -379,12 +604,21 @@
     updateControlLabels();
 
     allItems = await libraryModule.getLibrary();
+    refreshSiteFilterOptions();
+    buildColorFilterSwatches();
+    updateColorFilterActiveState();
+
+    searchInput.value = currentRawQuery;
+    siteFilterSelect.value = currentSiteFilter;
+
     renderCurrentView();
   }
 
   searchInput.addEventListener("input", () => {
-    currentQuery = normalizeSearchQuery(searchInput.value);
+    currentRawQuery = searchInput.value;
+    currentQuery = normalizeForSearch(searchInput.value);
     renderCurrentView();
+    savePopupPreferences();
   });
 
   sortModeButton.addEventListener("click", () => {
@@ -402,6 +636,16 @@
     renderCurrentView();
     savePopupPreferences();
   });
+
+  siteFilterSelect.addEventListener("change", () => {
+    currentSiteFilter = siteFilterSelect.value;
+    renderCurrentView();
+    savePopupPreferences();
+  });
+
+  exportButton.addEventListener("click", handleExportClick);
+  importButton.addEventListener("click", () => importFileInput.click());
+  importFileInput.addEventListener("change", handleImportFileChange);
 
   updateControlLabels();
 

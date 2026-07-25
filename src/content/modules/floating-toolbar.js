@@ -152,6 +152,7 @@
       const check = document.createElement("span");
       check.className = "shl-check";
       check.textContent = "";
+      check.setAttribute("aria-hidden", "true");
 
       option.appendChild(swatch);
       option.appendChild(label);
@@ -169,7 +170,7 @@
         option.classList.toggle("is-active", isCurrent);
         const checkNode = option.querySelector(".shl-check");
         if (checkNode) {
-          checkNode.textContent = "";
+          checkNode.textContent = isCurrent ? "✓" : "";
         }
       }
     }

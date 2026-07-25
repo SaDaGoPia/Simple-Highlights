@@ -6,7 +6,10 @@
   const highlighterModule = globalThis.SimpleHighlightsHighlighter;
   const toolbarModule = globalThis.SimpleHighlightsFloatingToolbar;
   const libraryModule = globalThis.SimpleHighlightsLibrary;
+  const spaWatcherModule = globalThis.SimpleHighlightsSpaWatcher;
   const RESTORE_CONTEXT_LENGTH = 48;
+  const SCROLL_TARGET_POLL_INTERVAL_MS = 200;
+  const SCROLL_TARGET_POLL_TIMEOUT_MS = 3000;
 
   if (!selectionModule || !stateModule || !highlighterModule || !toolbarModule || !libraryModule) {
     return;
@@ -74,11 +77,12 @@
         return;
       }
 
-      highlighterModule.removeHighlightById(hoveredHighlightId);
-      await libraryModule.removeHighlight(hoveredHighlightId);
-      highlighterModule.setHoverState(hoveredHighlightId, false);
+      const highlightId = hoveredHighlightId;
+      highlighterModule.removeHighlightById(highlightId);
+      highlighterModule.setHoverState(highlightId, false);
       hoveredHighlightId = "";
       hideDeleteButton();
+      await chrome.runtime.sendMessage({ type: "removeHighlight", highlightId });
     });
 
     document.documentElement.appendChild(button);
@@ -261,14 +265,17 @@
   }
 
   async function saveHighlightRecord(highlightId, selectedText, selectedColor, selectionContext) {
-    await libraryModule.addHighlight({
-      id: highlightId,
-      url: window.location.href,
-      pageTitle: document.title,
-      text: selectedText,
-      color: selectedColor,
-      prefixContext: selectionContext?.prefixContext || "",
-      suffixContext: selectionContext?.suffixContext || ""
+    await chrome.runtime.sendMessage({
+      type: "addHighlight",
+      payload: {
+        id: highlightId,
+        url: window.location.href,
+        pageTitle: document.title,
+        text: selectedText,
+        color: selectedColor,
+        prefixContext: selectionContext?.prefixContext || "",
+        suffixContext: selectionContext?.suffixContext || ""
+      }
     });
   }
 
@@ -365,6 +372,63 @@
     }
 
     scheduleDeleteButtonHide();
+  }
+
+  function waitForElementById(highlightId, timeoutMs) {
+    return new Promise((resolve) => {
+      const deadline = Date.now() + timeoutMs;
+
+      function attempt() {
+        const found = document.querySelector(`[data-simple-highlight-id="${highlightId}"]`);
+        if (found) {
+          resolve(found);
+          return;
+        }
+
+        if (Date.now() >= deadline) {
+          resolve(null);
+          return;
+        }
+
+        window.setTimeout(attempt, SCROLL_TARGET_POLL_INTERVAL_MS);
+      }
+
+      attempt();
+    });
+  }
+
+  async function scrollToAndFlashHighlight(highlightId) {
+    const element = await waitForElementById(highlightId, SCROLL_TARGET_POLL_TIMEOUT_MS);
+    if (!element) {
+      return;
+    }
+
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    highlighterModule.flashHighlightById(highlightId);
+  }
+
+  chrome.runtime.onMessage.addListener((message) => {
+    if (!message || typeof message.type !== "string") {
+      return;
+    }
+
+    if (message.type === "scrollToHighlight" && typeof message.highlightId === "string") {
+      scrollToAndFlashHighlight(message.highlightId);
+      return;
+    }
+
+    if (message.type === "highlightRemoved" && typeof message.highlightId === "string") {
+      highlighterModule.removeHighlightById(message.highlightId);
+    }
+  });
+
+  if (spaWatcherModule) {
+    spaWatcherModule.watchForUrlChanges(() => {
+      hideDeleteButtonImmediately();
+      toolbar.hide();
+      highlighterModule.unwrapAllHighlights();
+      restoreHighlightsForCurrentPage();
+    });
   }
 
   Promise.all([stateModule.initialize(), restoreHighlightsForCurrentPage()]).then(() => {

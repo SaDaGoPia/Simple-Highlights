@@ -2,7 +2,6 @@
 
 (() => {
   const STORAGE_KEY = "simpleHighlightsLibrary";
-  const MAX_TEXT_LENGTH = 1200;
   const MAX_CONTEXT_LENGTH = 120;
 
   function createHighlightId() {
@@ -15,14 +14,6 @@
     }
 
     return inputText.replace(/\s+/g, " ").trim();
-  }
-
-  function truncateText(inputText) {
-    if (inputText.length <= MAX_TEXT_LENGTH) {
-      return inputText;
-    }
-
-    return `${inputText.slice(0, MAX_TEXT_LENGTH)}...`;
   }
 
   function normalizeContext(inputText) {
@@ -74,7 +65,7 @@
   }
 
   async function addHighlight(record) {
-    const normalizedText = truncateText(normalizeText(record?.text));
+    const normalizedText = normalizeText(record?.text);
     if (!normalizedText) {
       return null;
     }
@@ -107,10 +98,62 @@
     await saveLibrary(filteredItems);
   }
 
+  function buildImportedEntry(record) {
+    const normalizedText = normalizeText(record?.text);
+    if (!normalizedText) {
+      return null;
+    }
+
+    const createdAt = Date.parse(record?.createdAt || "");
+
+    return {
+      id: typeof record?.id === "string" && record.id ? record.id : createHighlightId(),
+      url: typeof record?.url === "string" ? record.url : "",
+      hostname: getHostname(record?.url),
+      pageTitle: typeof record?.pageTitle === "string" ? record.pageTitle : "Untitled page",
+      text: normalizedText,
+      color: typeof record?.color === "string" ? record.color : "#fae082",
+      prefixContext: normalizeContext(record?.prefixContext),
+      suffixContext: normalizeContext(record?.suffixContext),
+      createdAt: Number.isNaN(createdAt) ? new Date().toISOString() : new Date(createdAt).toISOString()
+    };
+  }
+
+  async function importHighlights(rawItems) {
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      return { importedCount: 0, skippedCount: 0 };
+    }
+
+    const existingItems = await getLibrary();
+    const existingIds = new Set(existingItems.map((item) => item.id));
+
+    let importedCount = 0;
+    let skippedCount = 0;
+
+    for (const rawItem of rawItems) {
+      const entry = buildImportedEntry(rawItem);
+      if (!entry || existingIds.has(entry.id)) {
+        skippedCount += 1;
+        continue;
+      }
+
+      existingIds.add(entry.id);
+      existingItems.push(entry);
+      importedCount += 1;
+    }
+
+    if (importedCount > 0) {
+      await saveLibrary(existingItems);
+    }
+
+    return { importedCount, skippedCount };
+  }
+
   globalThis.SimpleHighlightsLibrary = Object.freeze({
     createHighlightId,
     getLibrary,
     addHighlight,
-    removeHighlight
+    removeHighlight,
+    importHighlights
   });
 })();

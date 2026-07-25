@@ -435,10 +435,50 @@
     }
   }
 
+  function unwrapAllHighlights() {
+    const elements = Array.from(document.querySelectorAll(`[${HIGHLIGHT_ATTRIBUTE}='true']`));
+
+    for (const element of elements) {
+      const parentNode = element.parentNode;
+      if (!parentNode) {
+        continue;
+      }
+
+      const textNode = document.createTextNode(element.textContent || "");
+      parentNode.replaceChild(textNode, element);
+      parentNode.normalize();
+    }
+
+    return elements.length;
+  }
+
+  function flashHighlightById(highlightId) {
+    const elements = getHighlightElementsById(highlightId);
+    if (elements.length === 0) {
+      return false;
+    }
+
+    for (const element of elements) {
+      element.classList.remove("is-flash");
+      // Forzar reflow para reiniciar la animacion si ya se aplico antes.
+      void element.offsetWidth;
+      element.classList.add("is-flash");
+      element.addEventListener(
+        "animationend",
+        () => element.classList.remove("is-flash"),
+        { once: true }
+      );
+    }
+
+    return true;
+  }
+
   globalThis.SimpleHighlightsHighlighter = Object.freeze({
     highlightRange,
     restoreHighlights,
     removeHighlightById,
-    setHoverState
+    setHoverState,
+    unwrapAllHighlights,
+    flashHighlightById
   });
 })();

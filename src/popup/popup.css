@@ -76,6 +76,97 @@ body {
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
 }
 
+.filter-controls {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.site-filter {
+  flex: 1;
+  min-width: 120px;
+  border: 1px solid #d5deeb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.color-filter {
+  display: flex;
+  gap: 6px;
+}
+
+.color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background: #ffffff;
+  cursor: pointer;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.color-swatch.is-active {
+  border-color: #1d4ed8;
+}
+
+.color-swatch-all {
+  display: block;
+  font-size: 0;
+}
+
+.library-actions {
+  margin-bottom: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.library-actions .control-button {
+  flex: 1;
+}
+
+.library-status {
+  margin: 0 0 8px;
+  min-height: 14px;
+  font-size: 11px;
+  color: #1d4ed8;
+}
+
+.item-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.item-action-button {
+  flex: 1;
+  border: 1px solid #d5deeb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 11px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.item-action-button:hover {
+  background: #f8fbff;
+}
+
+.item-action-button.is-danger {
+  color: #b91c1c;
+  border-color: #f3c6c6;
+}
+
+.item-action-button.is-danger:hover {
+  background: #fef2f2;
+}
+
 .site-group {
   background: #ffffff;
   border: 1px solid #dce3ef;
