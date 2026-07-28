@@ -9,6 +9,12 @@ It is designed around a simple workflow:
 3. Revisit the page later and see the highlight restored.
 4. Open the popup to search, sort, filter, and browse your saved highlights.
 
+## Screenshots
+
+| Floating toolbar & color picker | Highlighted passage | Popup library |
+| --- | --- | --- |
+| ![Floating toolbar with the color dropdown open, showing the active color checkmark](docs/screenshots/toolbar-color-picker.png) | ![A page with two highlighted passages in different pastel colors](docs/screenshots/highlighted-passage.png) | ![Popup showing the highlight library grouped by site, with search, filters, export/import, and per-item actions](docs/screenshots/popup-library.png) |
+
 ## Product Snapshot
 
 - Fast inline highlighting with a compact floating toolbar.
